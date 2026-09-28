@@ -1,0 +1,45 @@
+{
+  "name": "Subscription only",
+  "pricing": {
+    "hourly": {
+      "rate": 0,
+      "hoursPerEngagement": 0,
+      "realizationPct": 100
+    },
+    "project": {
+      "fee": 0,
+      "hoursPerEngagement": 0
+    },
+    "subscription": {
+      "monthlyFee": 400,
+      "hoursPerEngagement": 22,
+      "firstYearFee": 2000,
+      "firstYearExtraHours": 20,
+      "firstYearPct": 25
+    }
+  },
+  "mix": {
+    "hourly": 0,
+    "project": 0,
+    "subscription": 100
+  },
+  "plannedClients": 40,
+  "capacity": {
+    "weeksPerYear": 46,
+    "hoursPerWeek": 40,
+    "nonClientHoursPerWeek": 15
+  },
+  "costs": {
+    "fixedOverhead": {
+      "technology": 14000,
+      "complianceAndRegistration": 6000,
+      "insurance": 4000,
+      "marketing": 8000,
+      "educationAndMemberships": 4000,
+      "officeAndOther": 6000
+    },
+    "variablePctOfRevenue": 3,
+    "variableCostPerClient": 150
+  },
+  "targetOwnerIncome": 150000
+}

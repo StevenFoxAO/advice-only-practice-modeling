@@ -1,0 +1,18 @@
+{
+  "name": "advice-only-practice-modeling",
+  "version": "1.0.0",
+  "description": "Model the economics of an advice-only financial planning practice: breakeven client count, effective hourly rate, and capacity ceiling across hourly, project, and subscription pricing.",
+  "private": true,
+  "license": "MIT",
+  "main": "src/model.js",
+  "bin": {
+    "practice-model": "cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "example": "node cli.js examples/mixed-practice.json"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
