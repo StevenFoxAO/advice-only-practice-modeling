@@ -1,0 +1,45 @@
+{
+  "name": "Mixed practice",
+  "pricing": {
+    "hourly": {
+      "rate": 250,
+      "hoursPerEngagement": 8,
+      "realizationPct": 90
+    },
+    "project": {
+      "fee": 3500,
+      "hoursPerEngagement": 16
+    },
+    "subscription": {
+      "monthlyFee": 250,
+      "hoursPerEngagement": 18,
+      "firstYearFee": 1500,
+      "firstYearExtraHours": 12,
+      "firstYearPct": 30
+    }
+  },
+  "mix": {
+    "hourly": 20,
+    "project": 30,
+    "subscription": 50
+  },
+  "plannedClients": 50,
+  "capacity": {
+    "weeksPerYear": 46,
+    "hoursPerWeek": 40,
+    "nonClientHoursPerWeek": 15
+  },
+  "costs": {
+    "fixedOverhead": {
+      "technology": 12000,
+      "complianceAndRegistration": 6000,
+      "insurance": 4000,
+      "marketing": 8000,
+      "educationAndMemberships": 4000,
+      "officeAndOther": 6000
+    },
+    "variablePctOfRevenue": 3,
+    "variableCostPerClient": 100
+  },
+  "targetOwnerIncome": 150000
+}

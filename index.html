@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Advice-Only Practice Model</title>
+<meta name="description" content="Model the economics of an advice-only financial planning practice: breakeven client count, effective hourly rate, and capacity ceiling across hourly, project, and subscription pricing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a two-column ledger. Inputs on the left read like a fee schedule;
+   the right column is the resulting statement, headline figures first. */
+:root {
+  color-scheme: light;
+  --paper: #f5f7f4;        /* ledger paper, faint green cast */
+  --sheet: #ffffff;        /* raised surface for the statement */
+  --ink: #16201b;
+  --ink-2: #4a5852;
+  --ink-3: #6b7a73;
+  --rule: #d5ddd7;         /* ledger rule */
+  --rule-strong: #b3c0b8;
+  --accent: #2446a3;       /* fountain-pen blue */
+  --accent-wash: #e6ebf8;
+  --good: #1d7547;
+  --good-wash: #e3f2e9;
+  --warn: #9a5b00;
+  --warn-wash: #fbf0dc;
+  --crit: #b3261e;
+  --crit-wash: #fbe5e3;
+  --shade: rgba(22, 32, 27, 0.05);
+  --mix-1: #2a78d6;
+  --mix-2: #eb6834;
+  --mix-3: #1baf7a;
+
+  --font-display: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.25rem;
+  --step-4: 3rem;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #111613; --sheet: #182019; --ink: #e5ece7; --ink-2: #a9b6af; --ink-3: #85938c;
+    --rule: #28322c; --rule-strong: #3a4740; --accent: #93aaff; --accent-wash: #1f2a4a;
+    --good: #62c48d; --good-wash: #16301f; --warn: #e3a64a; --warn-wash: #33260f;
+    --crit: #f1837a; --crit-wash: #3a1b18; --shade: rgba(229, 236, 231, 0.05);
+    --mix-1: #3987e5; --mix-2: #d95926; --mix-3: #199e70;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #111613; --sheet: #182019; --ink: #e5ece7; --ink-2: #a9b6af; --ink-3: #85938c;
+  --rule: #28322c; --rule-strong: #3a4740; --accent: #93aaff; --accent-wash: #1f2a4a;
+  --good: #62c48d; --good-wash: #16301f; --warn: #e3a64a; --warn-wash: #33260f;
+  --crit: #f1837a; --crit-wash: #3a1b18; --shade: rgba(229, 236, 231, 0.05);
+  --mix-1: #3987e5; --mix-2: #d95926; --mix-3: #199e70;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 56px; }
+@media (min-width: 720px) { .wrap { padding-inline: 28px; } }
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: var(--step-3); letter-spacing: -0.01em; }
+h2 { font-size: var(--step-2); }
+h3 { font-family: var(--font-body); font-size: var(--step--1); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+p { margin: 0; }
+a { color: var(--accent); }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+.masthead { display: grid; gap: 12px; padding-bottom: 20px; border-bottom: 2px solid var(--ink); }
+.eyebrow { font-size: var(--step--1); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.lede { max-width: 68ch; color: var(--ink-2); font-size: var(--step-1); line-height: 1.45; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding-block: 14px; border-bottom: 1px solid var(--rule); }
+.toolbar .label { font-size: var(--step--1); color: var(--ink-3); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--rule-strong); border-radius: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--sheet); }
+button {
+  font: inherit; font-size: var(--step--1); font-weight: 600;
+  color: var(--ink); background: var(--sheet);
+  border: 1px solid var(--rule-strong); border-radius: var(--radius);
+  padding: 6px 12px; cursor: pointer;
+}
+button:hover { background: var(--accent-wash); }
+.seg button[aria-pressed="true"]:hover { background: var(--accent); }
+.toolbar .spacer { flex: 1 1 auto; }
+.toast { font-size: var(--step--1); color: var(--good); min-height: 1.2em; }
+
+/* Main grid */
+.grid { display: grid; gap: 28px; padding-top: 24px; }
+@media (min-width: 960px) {
+  .grid { grid-template-columns: minmax(330px, 400px) minmax(0, 1fr); align-items: start; }
+  .inputs { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow-y: auto; padding-right: 6px; }
+}
+
+/* Inputs: fee-schedule rows */
+.inputs { display: grid; gap: 22px; min-width: 0; }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 2px; min-width: 0; }
+legend { padding: 0; margin-bottom: 8px; font-family: var(--font-display); font-size: var(--step-1); font-weight: 600; }
+.group-note { font-size: var(--step--1); color: var(--ink-3); margin: -4px 0 8px; }
+.sub { font-size: var(--step--1); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); padding: 10px 0 2px; display: flex; align-items: center; gap: 8px; }
+.sub .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 128px; gap: 4px 12px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--rule);
+}
+.row label { font-size: var(--step-0); }
+.row .hint { grid-column: 1 / -1; font-size: var(--step--1); color: var(--ink-3); margin-top: -2px; }
+.field { display: flex; align-items: center; border: 1px solid var(--rule-strong); border-radius: 4px; background: var(--sheet); }
+.field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-wash); }
+.field .unit { font-size: var(--step--1); color: var(--ink-3); padding: 0 6px; white-space: nowrap; }
+.field input {
+  width: 100%; min-width: 0; border: 0; background: transparent; color: var(--ink);
+  font: inherit; font-variant-numeric: tabular-nums; text-align: right; padding: 6px 6px; outline: none;
+}
+.field:has(input[aria-invalid="true"]) { border-color: var(--crit); background: var(--crit-wash); }
+.derived { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0 0; font-size: var(--step--1); color: var(--ink-2); }
+.derived strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.mixbar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 2px; margin-top: 8px; background: var(--rule); }
+.mixbar span { display: block; height: 100%; }
+.mix-total[data-state="off"] { color: var(--warn); font-weight: 600; }
+
+/* Results */
+.results { display: grid; gap: 28px; min-width: 0; }
+.headline { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+@media (min-width: 640px) { .headline { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tile { background: var(--sheet); padding: 18px 18px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.tile .figure { font-family: var(--font-display); font-weight: 600; font-size: var(--step-4); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; }
+.tile .figure small { font-family: var(--font-body); font-size: var(--step-0); font-weight: 500; color: var(--ink-2); letter-spacing: 0; margin-left: 4px; }
+.tile .explain { font-size: var(--step--1); color: var(--ink-2); }
+.tile .second { font-size: var(--step--1); color: var(--ink-2); padding-top: 8px; margin-top: 4px; border-top: 1px dashed var(--rule); }
+.tile .second strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.chip { justify-self: start; display: inline-flex; align-items: center; gap: 6px; font-size: var(--step--1); font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.chip svg { width: 12px; height: 12px; flex: none; }
+.chip[data-s="good"] { color: var(--good); background: var(--good-wash); }
+.chip[data-s="warn"] { color: var(--warn); background: var(--warn-wash); }
+.chip[data-s="crit"] { color: var(--crit); background: var(--crit-wash); }
+.meter { height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; margin-top: 4px; }
+.meter span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.meter[data-over="true"] span { background: var(--crit); }
+
+.flags { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.flags li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border-radius: var(--radius); border-left: 4px solid; font-size: var(--step-0); }
+.flags li svg { width: 16px; height: 16px; margin-top: 3px; }
+.flags li[data-s="crit"] { background: var(--crit-wash); border-color: var(--crit); }
+.flags li[data-s="crit"] svg { color: var(--crit); }
+.flags li[data-s="warn"] { background: var(--warn-wash); border-color: var(--warn); }
+.flags li[data-s="warn"] svg { color: var(--warn); }
+.flags b { font-weight: 700; margin-right: 4px; }
+
+.section { display: grid; gap: 12px; min-width: 0; }
+.section-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.section-head p { font-size: var(--step--1); color: var(--ink-3); }
+.note { font-size: var(--step-0); color: var(--ink-2); max-width: 70ch; }
+
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+thead th { font-size: var(--step--1); font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--rule-strong); vertical-align: bottom; }
+tfoot td { font-weight: 700; border-top: 1px solid var(--ink); border-bottom: 0; }
+td .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: baseline; }
+
+.statement { display: grid; gap: 24px; }
+@media (min-width: 720px) { .statement { grid-template-columns: 1fr 1fr; align-items: start; } }
+.ledger { display: grid; }
+.ledger div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.ledger div.total { border-top: 1px solid var(--ink); border-bottom: 3px double var(--ink); font-weight: 700; }
+.ledger span:last-child { text-align: right; }
+.ledger .neg { color: var(--ink-2); }
+
+/* Chart */
+.chart-box { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 12px 8px 4px; }
+.chart-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-box text { font-family: var(--font-body); font-size: 12px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
+.chart-box text.mk { fill: var(--ink-2); font-weight: 600; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--sheet); border: 1px solid var(--rule-strong);
+  border-radius: 4px; padding: 8px 10px; font-size: var(--step--1); box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  display: grid; gap: 2px; min-width: 170px; font-variant-numeric: tabular-nums;
+}
+.tip strong { font-size: var(--step-0); }
+.tip .k { color: var(--ink-3); }
+details summary { cursor: pointer; font-size: var(--step--1); font-weight: 600; color: var(--accent); }
+details .table-scroll { max-height: 320px; overflow-y: auto; margin-top: 8px; }
+
+.errors { background: var(--crit-wash); border-left: 4px solid var(--crit); padding: 14px 16px; border-radius: var(--radius); display: grid; gap: 6px; }
+.errors ul { margin: 0; padding-left: 18px; }
+
+.io { display: grid; gap: 8px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 14px; }
+.io textarea { width: 100%; min-height: 160px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--rule-strong); border-radius: 4px; padding: 8px; resize: vertical; }
+.io .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: var(--step--1); color: var(--ink-3); display: grid; gap: 6px; max-width: 90ch; }
+
+/* Compact sticky summary for narrow screens, where the inputs push the headline off-screen */
+.pocket {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: grid; grid-template-columns: repeat(3, 1fr);
+  background: var(--sheet); border-bottom: 1px solid var(--rule-strong); margin-inline: -16px; padding: 8px 16px;
+  font-variant-numeric: tabular-nums;
+}
+.pocket div { display: grid; }
+.pocket span { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.pocket strong { font-size: var(--step-1); }
+@media (min-width: 960px) { .pocket { display: none; } }
+@media (prefers-reduced-motion: no-preference) { .meter span { transition: width .25s ease; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <span class="eyebrow">Advice-only practice model</span>
+    <h1>How many clients does your fee model need, and what does it pay per hour?</h1>
+    <p class="lede">Enter your hourly, project, and subscription pricing, your client mix, the hours each engagement takes, and your overhead. The worksheet returns your breakeven client count, your effective hourly rate, and the most clients your calendar can hold.</p>
+  </header>
+
+  <div class="pocket" aria-hidden="true">
+    <div><span>Breakeven</span><strong id="p-be">–</strong></div>
+    <div><span>Net per hour</span><strong id="p-eh">–</strong></div>
+    <div><span>Ceiling</span><strong id="p-cap">–</strong></div>
+  </div>
+
+  <div class="toolbar">
+    <span class="label" id="presets-label">Start from an example</span>
+    <div class="seg" role="group" aria-labelledby="presets-label" id="presets"></div>
+    <span class="spacer"></span>
+    <button type="button" id="btn-share" hidden>Copy share link</button>
+    <button type="button" id="btn-io" aria-expanded="false" aria-controls="io">Import / export</button>
+    <span class="toast" id="toast" role="status" aria-live="polite"></span>
+  </div>
+
+  <section class="io" id="io" hidden aria-label="Import or export a scenario">
+    <p class="note">Copy this JSON to save your scenario, or paste a scenario and load it. The same format runs from the command line with <code>node cli.js scenario.json</code>.</p>
+    <textarea id="io-text" spellcheck="false" aria-label="Scenario JSON"></textarea>
+    <div class="actions">
+      <button type="button" id="btn-copy">Copy JSON</button>
+      <button type="button" id="btn-load">Load pasted JSON</button>
+      <span class="toast" id="io-msg" role="status" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <form class="inputs" id="form" autocomplete="off" novalidate>
+      <fieldset>
+        <legend>Pricing and hours per engagement</legend>
+        <p class="group-note">Hours are all of your time on one engagement-year: meetings, analysis, prep, follow-up, and client admin.</p>
+
+        <div class="sub"><span class="swatch" style="background:var(--mix-1)"></span>Hourly</div>
+        <div class="row"><label for="h-rate">Hourly rate</label><div class="field"><span class="unit">$</span><input id="h-rate" data-path="pricing.hourly.rate" inputmode="decimal"><span class="unit">/hr</span></div></div>
+        <div class="row"><label for="h-hours">Hours per engagement</label><div class="field"><input id="h-hours" data-path="pricing.hourly.hoursPerEngagement" inputmode="decimal"><span class="unit">hrs</span></div></div>
+        <div class="row"><label for="h-real">Realization</label><div class="field"><input id="h-real" data-path="pricing.hourly.realizationPct" inputmode="decimal"><span class="unit">%</span></div><span class="hint">Share of those hours you bill and collect.</span></div>
+
+        <div class="sub"><span class="swatch" style="background:var(--mix-2)"></span>Project</div>
+        <div class="row"><label for="p-fee">Project fee</label><div class="field"><span class="unit">$</span><input id="p-fee" data-path="pricing.project.fee" inputmode="decimal"></div></div>
+        <div class="row"><label for="p-hours">Hours per project</label><div class="field"><input id="p-hours" data-path="pricing.project.hoursPerEngagement" inputmode="decimal"><span class="unit">hrs</span></div></div>
+
+        <div class="sub"><span class="swatch" style="background:var(--mix-3)"></span>Subscription</div>
+        <div class="row"><label for="s-fee">Monthly fee</label><div class="field"><span class="unit">$</span><input id="s-fee" data-path="pricing.subscription.monthlyFee" inputmode="decimal"><span class="unit">/mo</span></div></div>
+        <div class="row"><label for="s-hours">Ongoing hours per year</label><div class="field"><input id="s-hours" data-path="pricing.subscription.hoursPerEngagement" inputmode="decimal"><span class="unit">hrs</span></div></div>
+        <div class="row"><label for="s-fyfee">First-year setup fee</label><div class="field"><span class="unit">$</span><input id="s-fyfee" data-path="pricing.subscription.firstYearFee" inputmode="decimal"></div></div>
+        <div class="row"><label for="s-fyhrs">First-year extra hours</label><div class="field"><input id="s-fyhrs" data-path="pricing.subscription.firstYearExtraHours" inputmode="decimal"><span class="unit">hrs</span></div><span class="hint">Plan build and onboarding, on top of ongoing hours.</span></div>
+        <div class="row"><label for="s-fypct">Subscribers in their first year</label><div class="field"><input id="s-fypct" data-path="pricing.subscription.firstYearPct" inputmode="decimal"><span class="unit">%</span></div></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Client mix</legend>
+        <p class="group-note">Share of your clients (engagement-years) in each pricing model.</p>
+        <div class="row"><label for="m-h">Hourly</label><div class="field"><input id="m-h" data-path="mix.hourly" inputmode="decimal"><span class="unit">%</span></div></div>
+        <div class="row"><label for="m-p">Project</label><div class="field"><input id="m-p" data-path="mix.project" inputmode="decimal"><span class="unit">%</span></div></div>
+        <div class="row"><label for="m-s">Subscription</label><div class="field"><input id="m-s" data-path="mix.subscription" inputmode="decimal"><span class="unit">%</span></div></div>
+        <div class="mixbar" id="mixbar" aria-hidden="true"></div>
+        <div class="derived"><span>Total</span><strong class="mix-total" id="mix-total">–</strong></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Clients this year</legend>
+        <div class="row"><label for="planned">Planned clients</label><div class="field"><input id="planned" data-path="plannedClients" inputmode="numeric"></div><span class="hint">Total engagement-years you expect to serve, all models combined.</span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Your time</legend>
+        <div class="row"><label for="c-weeks">Working weeks per year</label><div class="field"><input id="c-weeks" data-path="capacity.weeksPerYear" inputmode="decimal"><span class="unit">wks</span></div></div>
+        <div class="row"><label for="c-hpw">Hours per week</label><div class="field"><input id="c-hpw" data-path="capacity.hoursPerWeek" inputmode="decimal"><span class="unit">hrs</span></div></div>
+        <div class="row"><label for="c-nch">Non-client hours per week</label><div class="field"><input id="c-nch" data-path="capacity.nonClientHoursPerWeek" inputmode="decimal"><span class="unit">hrs</span></div><span class="hint">Marketing, bookkeeping, compliance, CE. Time no client pays for directly.</span></div>
+        <div class="derived"><span>Client hours available per year</span><strong id="client-hours">–</strong></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Overhead</legend>
+        <p class="group-note">Annual fixed costs. Leave out your own pay; that comes out of profit.</p>
+        <div class="row"><label for="o-tech">Technology and software</label><div class="field"><span class="unit">$</span><input id="o-tech" data-path="costs.fixedOverhead.technology" inputmode="decimal"></div></div>
+        <div class="row"><label for="o-comp">Compliance and registration</label><div class="field"><span class="unit">$</span><input id="o-comp" data-path="costs.fixedOverhead.complianceAndRegistration" inputmode="decimal"></div></div>
+        <div class="row"><label for="o-ins">Insurance (E&amp;O, cyber)</label><div class="field"><span class="unit">$</span><input id="o-ins" data-path="costs.fixedOverhead.insurance" inputmode="decimal"></div></div>
+        <div class="row"><label for="o-mkt">Marketing</label><div class="field"><span class="unit">$</span><input id="o-mkt" data-path="costs.fixedOverhead.marketing" inputmode="decimal"></div></div>
+        <div class="row"><label for="o-edu">Education and memberships</label><div class="field"><span class="unit">$</span><input id="o-edu" data-path="costs.fixedOverhead.educationAndMemberships" inputmode="decimal"></div></div>
+        <div class="row"><label for="o-oth">Office, staff, and other</label><div class="field"><span class="unit">$</span><input id="o-oth" data-path="costs.fixedOverhead.officeAndOther" inputmode="decimal"></div></div>
+        <div class="derived"><span>Total fixed overhead</span><strong id="overhead-total">–</strong></div>
+        <div class="sub">Costs that grow with each client</div>
+        <div class="row"><label for="v-pct">Payment processing</label><div class="field"><input id="v-pct" data-path="costs.variablePctOfRevenue" inputmode="decimal"><span class="unit">% of rev.</span></div></div>
+        <div class="row"><label for="v-per">Per-client costs</label><div class="field"><span class="unit">$</span><input id="v-per" data-path="costs.variableCostPerClient" inputmode="decimal"><span class="unit">/yr</span></div><span class="hint">Per-client software fees, data aggregation, mailings.</span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Your income target</legend>
+        <div class="row"><label for="target">Owner profit you need</label><div class="field"><span class="unit">$</span><input id="target" data-path="targetOwnerIncome" inputmode="decimal"><span class="unit">/yr</span></div><span class="hint">Pre-tax, before self-employment tax and retirement contributions.</span></div>
+      </fieldset>
+    </form>
+
+    <main class="results" id="results" aria-live="polite">
+      <div class="errors" id="errors" hidden></div>
+
+      <div id="output">
+        <div class="headline">
+          <div class="tile">
+            <h3>Breakeven clients</h3>
+            <div class="figure" id="be-fig">–</div>
+            <p class="explain" id="be-explain"></p>
+            <span class="chip" id="be-chip"></span>
+            <p class="second" id="be-target"></p>
+          </div>
+          <div class="tile">
+            <h3>Effective hourly rate</h3>
+            <div class="figure" id="eh-fig">–</div>
+            <p class="explain" id="eh-explain"></p>
+            <p class="second" id="eh-second"></p>
+          </div>
+          <div class="tile">
+            <h3>Capacity ceiling</h3>
+            <div class="figure" id="cap-fig">–</div>
+            <p class="explain" id="cap-explain"></p>
+            <div class="meter" id="cap-meter" role="img"><span></span></div>
+            <p class="explain" id="cap-util"></p>
+          </div>
+        </div>
+      </div>
+
+      <ul class="flags" id="flags"></ul>
+
+      <section class="section" id="units-section">
+        <div class="section-head">
+          <h2>Per engagement-year</h2>
+          <p>What one client in each model brings in, and what it pays per hour of your time.</p>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Model</th><th scope="col">Share</th><th scope="col">Revenue</th><th scope="col">Hours</th><th scope="col">Revenue<br>per hour</th><th scope="col">Contribution<br>per hour</th></tr></thead>
+            <tbody id="units-body"></tbody>
+            <tfoot id="units-foot"></tfoot>
+          </table>
+        </div>
+        <p class="note" id="units-note"></p>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2 id="year-title">Planned year</h2>
+          <p>Pre-tax. Owner profit is what is left to pay you.</p>
+        </div>
+        <div class="statement">
+          <div class="ledger" id="pl"></div>
+          <div class="ledger" id="hours"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>Net hourly rate by client count</h2>
+          <p>Owner profit divided by every hour you work, client and non-client.</p>
+        </div>
+        <div class="chart-box" id="chart-box">
+          <svg id="chart" role="img" aria-labelledby="chart-desc"><desc id="chart-desc"></desc></svg>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+        <details>
+          <summary>Show the numbers behind the chart</summary>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Clients</th><th scope="col">Revenue</th><th scope="col">Owner profit</th><th scope="col">Hours worked</th><th scope="col">Net per hour</th></tr></thead>
+              <tbody id="curve-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <p>Figures are pre-tax and exclude self-employment tax, retirement contributions, and benefits. The examples are illustrative placeholders, not industry benchmarks; replace them with your own numbers.</p>
+    <p>This worksheet is an educational model, not tax, legal, or investment advice. Formulas and assumptions: <a href="https://github.com/StevenFoxAO/advice-only-practice-modeling/blob/main/docs/METHODOLOGY.md">methodology</a>. Source: <a href="https://github.com/StevenFoxAO/advice-only-practice-modeling">GitHub</a>.</p>
+  </footer>
+</div>
+
+<script src="src/model.js"></script>
+<script src="src/presets.js"></script>
+<script>
+(function () {
+  'use strict';
+  var M = window.PracticeModel;
+  var PRESETS = window.PracticePresets;
+  var STORE_KEY = 'advice-only-practice-model:v1';
+  var OVERHEAD_KEYS = ['technology', 'complianceAndRegistration', 'insurance', 'marketing', 'educationAndMemberships', 'officeAndOther'];
+  var COLORS = { hourly: 'var(--mix-1)', project: 'var(--mix-2)', subscription: 'var(--mix-3)' };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var inputs = Array.prototype.slice.call(document.querySelectorAll('[data-path]'));
+  var scenario;
+  var activePreset = null;
+
+  // ---------- formatting ----------
+  function usd(x) {
+    if (x === null || x === undefined || !isFinite(x)) return 'n/a';
+    return (x < 0 ? '−' : '') + '$' + Math.round(Math.abs(x)).toLocaleString('en-US');
+  }
+  function perHr(x) { return x === null || x === undefined ? 'n/a' : usd(x) + '/hr'; }
+  function int(x) { return Math.round(x).toLocaleString('en-US'); }
+  function dec(x, d) { return (+x).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function plural(n, word) { return int(n) + ' ' + word + (Math.round(n) === 1 ? '' : 's'); }
+
+  // ---------- scenario plumbing ----------
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function get(obj, path) {
+    return path.split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj);
+  }
+  function set(obj, path, value) {
+    var keys = path.split('.');
+    var o = obj;
+    for (var i = 0; i < keys.length - 1; i++) {
+      if (o[keys[i]] === null || typeof o[keys[i]] !== 'object') o[keys[i]] = {};
+      o = o[keys[i]];
+    }
+    o[keys[keys.length - 1]] = value;
+  }
+
+  // Imported overhead may be a single number or carry keys this form lacks;
+  // fold anything unrecognized into "Office, staff, and other".
+  function fitOverhead(s) {
+    var c = s.costs = s.costs || {};
+    var src = c.fixedOverhead;
+    var out = {};
+    OVERHEAD_KEYS.forEach(function (k) { out[k] = 0; });
+    if (typeof src === 'number' || typeof src === 'string') out.officeAndOther = Number(src) || 0;
+    else if (src && typeof src === 'object') {
+      Object.keys(src).forEach(function (k) {
+        var v = Number(src[k]) || 0;
+        if (OVERHEAD_KEYS.indexOf(k) >= 0) out[k] = v; else out.officeAndOther += v;
+      });
+    }
+    c.fixedOverhead = out;
+    return s;
+  }
+
+  function fillForm() {
+    inputs.forEach(function (el) {
+      var v = get(scenario, el.dataset.path);
+      el.value = v === undefined || v === null ? '' : String(v);
+    });
+  }
+
+  function readInput(el) {
+    var raw = el.value.replace(/[$,\s%]/g, '');
+    set(scenario, el.dataset.path, raw === '' ? '' : (isNaN(Number(raw)) ? raw : Number(raw)));
+  }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(scenario)); } catch (e) { /* storage unavailable */ }
+  }
+  function loadSaved() {
+    try {
+      var s = localStorage.getItem(STORE_KEY);
+      return s ? JSON.parse(s) : null;
+    } catch (e) { return null; }
+  }
+
+  function toB64(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function fromB64(b) { b = b.replace(/-/g, '+').replace(/_/g, '/'); return decodeURIComponent(escape(atob(b))); }
+  function fromHash() {
+    var m = /^#s=([A-Za-z0-9_-]+)$/.exec(location.hash);
+    if (!m) return null;
+    try { return JSON.parse(fromB64(m[1])); } catch (e) { return null; }
+  }
+
+  // ---------- presets toolbar ----------
+  function buildPresets() {
+    var box = $('presets');
+    Object.keys(PRESETS).forEach(function (key) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = PRESETS[key].name;
+      b.dataset.key = key;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        scenario = fitOverhead(clone(PRESETS[key]));
+        activePreset = key;
+        fillForm();
+        update();
+      });
+      box.appendChild(b);
+    });
+  }
+  function markPreset() {
+    Array.prototype.forEach.call($('presets').children, function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.key === activePreset));
+    });
+  }
+
+  // ---------- rendering ----------
+  var ICONS = {
+    good: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    warn: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l7 13H1z" fill="currentColor"/><path d="M8 6v4M8 11.8v.4" stroke="var(--sheet)" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    crit: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="var(--sheet)" stroke-width="1.8" stroke-linecap="round"/></svg>'
+  };
+  function chip(el, state, text) {
+    el.dataset.s = state;
+    el.innerHTML = ICONS[state];
+    el.appendChild(document.createTextNode(text));
+  }
+  function figure(el, value, unit) {
+    el.textContent = value;
+    if (unit) {
+      var s = document.createElement('small');
+      s.textContent = unit;
+      el.appendChild(s);
+    }
+  }
+  function ledger(el, rows) {
+    el.innerHTML = '';
+    rows.forEach(function (r) {
+      var d = document.createElement('div');
+      if (r.total) d.className = 'total';
+      var a = document.createElement('span'); a.textContent = r.label;
+      var b = document.createElement('span'); b.textContent = r.value;
+      if (r.neg) b.className = 'neg';
+      d.appendChild(a); d.appendChild(b);
+      el.appendChild(d);
+    });
+  }
+
+  function renderDerived() {
+    var n = M.normalize(scenario);
+    var mixTotal = n.mix.hourly + n.mix.project + n.mix.subscription;
+    var mt = $('mix-total');
+    mt.textContent = isFinite(mixTotal) ? dec(mixTotal, mixTotal % 1 ? 1 : 0) + '%' : 'n/a';
+    mt.dataset.state = Math.abs(mixTotal - 100) > 0.01 ? 'off' : 'ok';
+    var bar = $('mixbar');
+    bar.innerHTML = '';
+    M.MODELS.forEach(function (m) {
+      if (!(n.mix[m] > 0) || !(mixTotal > 0)) return;
+      var s = document.createElement('span');
+      s.style.width = (n.mix[m] / mixTotal * 100) + '%';
+      s.style.background = COLORS[m];
+      bar.appendChild(s);
+    });
+    var ch = n.capacity.weeksPerYear * (n.capacity.hoursPerWeek - n.capacity.nonClientHoursPerWeek);
+    $('client-hours').textContent = isFinite(ch) ? int(ch) + ' hrs' : 'n/a';
+    $('overhead-total').textContent = usd(n.costs.fixedOverhead);
+  }
+
+  function renderErrors(r) {
+    var box = $('errors');
+    inputs.forEach(function (el) {
+      var p = el.dataset.path;
+      var bad = !r.ok && r.errors.some(function (e) { return e.field === p || p.indexOf(e.field + '.') === 0; });
+      el.setAttribute('aria-invalid', bad ? 'true' : 'false');
+    });
+    if (r.ok) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = '<strong>Fix these inputs to see results</strong>';
+    var ul = document.createElement('ul');
+    r.errors.forEach(function (e) {
+      var li = document.createElement('li');
+      li.textContent = e.message;
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+  }
+
+  function renderHeadline(r) {
+    var n = r.inputs;
+    var be = r.breakeven, cap = r.capacity, t = r.target;
+
+    // Breakeven
+    if (be.reachable) {
+      figure($('be-fig'), int(be.clients), be.clients === 1 ? 'client' : 'clients');
+      $('be-explain').textContent = 'Covers ' + usd(n.costs.fixedOverhead) + ' of overhead and variable costs. At this count you earn $0.';
+      if (be.withinCapacity) chip($('be-chip'), 'good', int(cap.ceiling ? be.clients / cap.ceiling * 100 : 0) + '% of capacity');
+      else chip($('be-chip'), 'crit', 'Above your capacity ceiling');
+    } else {
+      figure($('be-fig'), 'None');
+      $('be-explain').textContent = 'Each client costs more to serve than it pays, so no client count covers overhead.';
+      chip($('be-chip'), 'crit', 'Not reachable');
+    }
+    var tgt = $('be-target');
+    if (n.targetOwnerIncome > 0 && t.reachable) {
+      tgt.hidden = false;
+      tgt.innerHTML = '';
+      tgt.appendChild(document.createElement('strong')).textContent = plural(t.clients, 'client');
+      tgt.appendChild(document.createTextNode(' to earn your ' + usd(n.targetOwnerIncome) + ' target' +
+        (t.withinCapacity ? '.' : ', more than your hours allow.')));
+    } else tgt.hidden = true;
+
+    // Effective hourly
+    var p = r.planned;
+    figure($('eh-fig'), usd(r.effectiveHourly.netAtPlanned), '/hr');
+    $('eh-explain').textContent = 'Net to you at ' + plural(n.plannedClients, 'client') + ': ' + usd(p.profit) +
+      ' owner profit over ' + int(p.totalHours) + ' hours worked.';
+    var s2 = $('eh-second');
+    s2.innerHTML = '';
+    s2.appendChild(document.createElement('strong')).textContent = perHr(r.effectiveHourly.netAtCapacity);
+    s2.appendChild(document.createTextNode(' at capacity. '));
+    s2.appendChild(document.createElement('strong')).textContent = perHr(r.effectiveHourly.grossPerClientHour);
+    s2.appendChild(document.createTextNode(' revenue per client hour, before costs and non-client time.'));
+
+    // Capacity
+    figure($('cap-fig'), int(cap.ceiling), cap.ceiling === 1 ? 'client' : 'clients');
+    $('cap-explain').textContent = int(cap.clientHours) + ' client hours a year ÷ ' + dec(r.blended.hours, 1) + ' hours per client at this mix.';
+    var util = p.utilization || 0;
+    var meter = $('cap-meter');
+    meter.firstElementChild.style.width = Math.min(util, 1) * 100 + '%';
+    meter.dataset.over = String(util > 1);
+    meter.setAttribute('aria-label', 'Planned clients use ' + Math.round(util * 100) + '% of client hours');
+    $('cap-util').textContent = 'Planned ' + int(n.plannedClients) + ' use ' + Math.round(util * 100) + '% of your client hours' +
+      (util > 1 ? '.' : ', leaving room for ' + plural(Math.max(cap.ceiling - n.plannedClients, 0), 'more client') + '.');
+
+    // Pocket summary on narrow screens
+    $('p-be').textContent = be.reachable ? int(be.clients) : 'None';
+    $('p-eh').textContent = usd(r.effectiveHourly.netAtPlanned);
+    $('p-cap').textContent = int(cap.ceiling);
+  }
+
+  function renderFlags(r) {
+    var ul = $('flags');
+    ul.innerHTML = '';
+    r.warnings.forEach(function (w) {
+      var s = w.level === 'critical' ? 'crit' : 'warn';
+      var li = document.createElement('li');
+      li.dataset.s = s;
+      li.innerHTML = ICONS[s];
+      var t = document.createElement('span');
+      var b = document.createElement('b');
+      b.textContent = s === 'crit' ? 'Not viable.' : 'Check this.';
+      t.appendChild(b);
+      t.appendChild(document.createTextNode(w.message));
+      li.appendChild(t);
+      ul.appendChild(li);
+    });
+    ul.hidden = !r.warnings.length;
+  }
+
+  function renderUnits(r) {
+    var body = $('units-body');
+    body.innerHTML = '';
+    M.MODELS.forEach(function (m) {
+      var u = r.perModel[m];
+      var tr = document.createElement('tr');
+      var active = r.weights[m] > 0;
+      var cells = [
+        u.label,
+        dec(r.weights[m] * 100, 0) + '%',
+        active ? usd(u.revenue) : '–',
+        active ? dec(u.hours, 1) : '–',
+        active ? usd(u.grossPerHour) : '–',
+        active ? usd(u.contributionPerHour) : '–'
+      ];
+      cells.forEach(function (c, i) {
+        var td = document.createElement(i === 0 ? 'th' : 'td');
+        if (i === 0) {
+          td.scope = 'row';
+          var sw = document.createElement('span');
+          sw.className = 'swatch';
+          sw.style.background = COLORS[m];
+          td.appendChild(sw);
+        }
+        td.appendChild(document.createTextNode(c));
+        tr.appendChild(td);
+      });
+      if (!active) tr.style.color = 'var(--ink-3)';
+      body.appendChild(tr);
+    });
+    var b = r.blended;
+    $('units-foot').innerHTML = '';
+    var tr = document.createElement('tr');
+    ['Blended', '100%', usd(b.revenue), dec(b.hours, 1), usd(b.grossPerHour), usd(b.contributionPerHour)].forEach(function (c) {
+      var td = document.createElement('td'); td.textContent = c; tr.appendChild(td);
+    });
+    $('units-foot').appendChild(tr);
+
+    // Which model pays most per hour of your time, among those in the mix
+    var active = M.MODELS.filter(function (m) { return r.weights[m] > 0 && r.perModel[m].contributionPerHour !== null; });
+    var note = $('units-note');
+    if (active.length > 1) {
+      active.sort(function (a, c) { return r.perModel[c].contributionPerHour - r.perModel[a].contributionPerHour; });
+      var hi = r.perModel[active[0]], lo = r.perModel[active[active.length - 1]];
+      if (Math.round(hi.contributionPerHour) === Math.round(lo.contributionPerHour)) {
+        note.textContent = 'Every model in your mix contributes about the same per hour (' + perHr(hi.contributionPerHour) + '), so shifting the mix mostly changes how many clients you serve, not what an hour earns.';
+      } else {
+        note.textContent = hi.label + ' clients contribute the most per hour of your time (' + perHr(hi.contributionPerHour) + ') and ' +
+          lo.label.toLowerCase() + ' clients the least (' + perHr(lo.contributionPerHour) + '). Contribution is revenue after payment processing and per-client costs. When your calendar is full, this is the figure that sets your income ceiling.';
+      }
+      note.hidden = false;
+    } else note.hidden = true;
+  }
+
+  function renderYear(r) {
+    var p = r.planned;
+    $('year-title').textContent = 'Planned year: ' + plural(p.clients, 'client');
+    ledger($('pl'), [
+      { label: 'Revenue', value: usd(p.revenue) },
+      { label: 'Variable costs', value: usd(-p.variableCosts), neg: true },
+      { label: 'Fixed overhead', value: usd(-p.fixedOverhead), neg: true },
+      { label: 'Owner profit', value: usd(p.profit), total: true }
+    ]);
+    var rows = [];
+    M.MODELS.forEach(function (m) {
+      if (r.weights[m] > 0) rows.push({ label: r.perModel[m].label + ' clients', value: dec(p.byModel[m], p.byModel[m] % 1 ? 1 : 0) + '  ×  ' + dec(r.perModel[m].hours, 1) + ' hrs' });
+    });
+    rows.push({ label: 'Client hours', value: int(p.deliveryHours) });
+    rows.push({ label: 'Non-client hours', value: int(p.nonClientHours) });
+    rows.push({ label: 'Hours worked', value: int(p.totalHours) + '  (' + dec(p.hoursPerWeek, 1) + '/wk)', total: true });
+    ledger($('hours'), rows);
+  }
+
+  // ---------- chart ----------
+  function niceStep(span, target) {
+    var raw = span / target;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var f = raw / mag;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+  }
+  var chartState = null;
+
+  function renderChart(r) {
+    var n = r.inputs;
+    var cands = [r.capacity.ceiling, n.plannedClients];
+    if (r.breakeven.reachable) cands.push(r.breakeven.clients);
+    if (r.target.reachable && r.target.clients <= r.capacity.ceiling * 1.5) cands.push(r.target.clients);
+    var xMax = Math.max(5, Math.ceil(Math.max.apply(null, cands) * 1.15));
+    xMax = Math.min(xMax, Math.max(r.capacity.ceiling * 2, n.plannedClients) + 10, 2000);
+    var pts = M.curve(r, xMax);
+
+    var box = $('chart-box');
+    var W = Math.max(300, box.clientWidth - 16);
+    var H = Math.round(Math.min(340, Math.max(230, W * 0.5)));
+    var m = { l: 64, r: 16, t: 50, b: 36 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    var ys = pts.map(function (p) { return p.netHourly; });
+    var yLo = Math.min(0, Math.min.apply(null, ys)), yHi = Math.max(0, Math.max.apply(null, ys));
+    if (yHi - yLo < 1) yHi = yLo + 1;
+    var step = niceStep(yHi - yLo, 5);
+    yLo = Math.floor(yLo / step) * step; yHi = Math.ceil(yHi / step) * step;
+    var X = function (c) { return m.l + (c / xMax) * iw; };
+    var Y = function (v) { return m.t + (1 - (v - yLo) / (yHi - yLo)) * ih; };
+
+    var svg = $('chart');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W); svg.setAttribute('height', H);
+    var desc = svg.querySelector('desc');
+    var parts = [];
+
+    // Beyond-capacity region
+    var capX = X(Math.min(r.capacity.ceiling, xMax));
+    if (r.capacity.ceiling < xMax) {
+      parts.push('<rect x="' + capX + '" y="' + m.t + '" width="' + (m.l + iw - capX) + '" height="' + ih + '" fill="var(--shade)"/>');
+      if (m.l + iw - capX > 118) parts.push('<text x="' + (m.l + iw - 6) + '" y="' + (m.t + ih - 8) + '" text-anchor="end">Beyond your hours</text>');
+    }
+    // Grid + y labels
+    for (var v = yLo; v <= yHi + step / 2; v += step) {
+      var y = Y(v);
+      parts.push('<line x1="' + m.l + '" x2="' + (m.l + iw) + '" y1="' + y + '" y2="' + y + '" stroke="' + (Math.abs(v) < 1e-9 ? 'var(--ink-3)' : 'var(--rule)') + '" stroke-width="1"/>');
+      parts.push('<text x="' + (m.l - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + usd(v) + '</text>');
+    }
+    // X ticks
+    var xs = Math.max(1, Math.ceil(niceStep(xMax, Math.max(4, Math.floor(iw / 70)))));
+    for (var c = 0; c <= xMax; c += xs) {
+      parts.push('<text x="' + X(c) + '" y="' + (m.t + ih + 18) + '" text-anchor="middle">' + int(c) + '</text>');
+    }
+    parts.push('<text x="' + (m.l + iw) + '" y="' + (H - 2) + '" text-anchor="end">Clients per year</text>');
+
+    // Line
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.clients).toFixed(1) + ' ' + Y(p.netHourly).toFixed(1); }).join('');
+    parts.push('<path d="' + d + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+
+    // Markers, staggered into rows so close labels do not collide
+    var marks = [];
+    if (r.breakeven.reachable && r.breakeven.clients <= xMax) marks.push({ c: r.breakeven.clients, label: 'Breakeven ' + r.breakeven.clients });
+    if (n.plannedClients <= xMax) marks.push({ c: n.plannedClients, label: 'Planned ' + int(n.plannedClients) });
+    if (r.capacity.ceiling <= xMax) marks.push({ c: r.capacity.ceiling, label: 'Ceiling ' + r.capacity.ceiling });
+    marks.sort(function (a, b) { return a.c - b.c; });
+    var rowEnds = [-Infinity, -Infinity, -Infinity];
+    marks.forEach(function (mk) {
+      var x = X(mk.c);
+      var w = mk.label.length * 6.6 + 8;
+      var anchor = x + w / 2 > W - 2 ? 'end' : (x - w / 2 < 2 ? 'start' : 'middle');
+      var left = anchor === 'end' ? x - w : anchor === 'start' ? x : x - w / 2;
+      var row = 0;
+      while (row < 2 && left < rowEnds[row] + 6) row++;
+      rowEnds[row] = left + w;
+      var ly = 14 + row * 16;
+      parts.push('<line x1="' + x + '" x2="' + x + '" y1="' + (ly + 4) + '" y2="' + (m.t + ih) + '" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"/>');
+      var p = pts[Math.min(Math.round(mk.c), pts.length - 1)];
+      parts.push('<circle cx="' + x + '" cy="' + Y(p.netHourly) + '" r="4.5" fill="var(--accent)" stroke="var(--sheet)" stroke-width="2"/>');
+      parts.push('<text class="mk" x="' + x + '" y="' + ly + '" text-anchor="' + anchor + '">' + mk.label + '</text>');
+    });
+
+    // Hover layer
+    parts.push('<line id="xh" x1="0" x2="0" y1="' + m.t + '" y2="' + (m.t + ih) + '" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>');
+    parts.push('<circle id="xd" r="5" fill="var(--accent)" stroke="var(--sheet)" stroke-width="2" visibility="hidden"/>');
+    parts.push('<rect id="hit" x="' + m.l + '" y="' + m.t + '" width="' + iw + '" height="' + ih + '" fill="transparent" tabindex="0" aria-label="Chart: use arrow keys to step through client counts"/>');
+
+    svg.innerHTML = '';
+    svg.appendChild(desc);
+    svg.insertAdjacentHTML('beforeend', parts.join(''));
+    desc.textContent = 'Line chart of net hourly rate from ' + usd(pts[0].netHourly) + ' at 0 clients to ' +
+      usd(pts[pts.length - 1].netHourly) + ' at ' + xMax + ' clients.';
+
+    chartState = { pts: pts, X: X, Y: Y, m: m, iw: iw, xMax: xMax, W: W, hours: r.inputs.capacity.weeksPerYear, cur: null };
+    var hit = $('hit');
+    hit.addEventListener('pointermove', onMove);
+    hit.addEventListener('pointerleave', hideTip);
+    hit.addEventListener('blur', hideTip);
+    hit.addEventListener('keydown', onKey);
+
+    // Table view
+    var tb = $('curve-body');
+    tb.innerHTML = '';
+    var every = Math.max(1, Math.ceil(pts.length / 60));
+    pts.forEach(function (p, i) {
+      if (i % every && i !== pts.length - 1) return;
+      var tr = document.createElement('tr');
+      [int(p.clients), usd(p.revenue), usd(p.profit), int(p.totalHours), usd(p.netHourly)].forEach(function (v) {
+        var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }
+
+  function showAt(idx) {
+    var s = chartState;
+    if (!s) return;
+    idx = Math.max(0, Math.min(s.pts.length - 1, idx));
+    s.cur = idx;
+    var p = s.pts[idx];
+    var x = s.X(p.clients), y = s.Y(p.netHourly);
+    var xh = $('xh'), xd = $('xd');
+    xh.setAttribute('x1', x); xh.setAttribute('x2', x); xh.setAttribute('visibility', 'visible');
+    xd.setAttribute('cx', x); xd.setAttribute('cy', y); xd.setAttribute('visibility', 'visible');
+    var tip = $('tip');
+    tip.innerHTML = '';
+    var add = function (cls, text) { var e = document.createElement(cls === 'strong' ? 'strong' : 'span'); if (cls !== 'strong') e.className = cls; e.textContent = text; tip.appendChild(e); };
+    add('strong', usd(p.netHourly) + '/hr net');
+    add('k', plural(p.clients, 'client'));
+    add('', 'Owner profit ' + usd(p.profit));
+    add('', int(p.totalHours) + ' hrs worked (' + dec(s.hours ? p.totalHours / s.hours : 0, 1) + '/wk)');
+    tip.hidden = false;
+    var box = $('chart-box');
+    var scale = box.clientWidth / s.W;
+    var left = x * scale + 14;
+    if (left + tip.offsetWidth > box.clientWidth - 4) left = x * scale - tip.offsetWidth - 14;
+    tip.style.left = Math.max(4, left) + 'px';
+    tip.style.top = Math.max(4, y * scale - tip.offsetHeight / 2) + 'px';
+  }
+  function onMove(e) {
+    var s = chartState;
+    var svg = $('chart');
+    var rect = svg.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (s.W / rect.width);
+    var c = Math.round((x - s.m.l) / s.iw * s.xMax);
+    showAt(c);
+  }
+  function onKey(e) {
+    var s = chartState;
+    if (!s) return;
+    var cur = s.cur === null ? 0 : s.cur;
+    var big = Math.max(1, Math.round(s.xMax / 10));
+    var map = { ArrowRight: cur + 1, ArrowLeft: cur - 1, PageUp: cur + big, PageDown: cur - big, Home: 0, End: s.pts.length - 1 };
+    if (e.key in map) { e.preventDefault(); showAt(map[e.key]); }
+  }
+  function hideTip() {
+    $('tip').hidden = true;
+    var xh = $('xh'), xd = $('xd');
+    if (xh) xh.setAttribute('visibility', 'hidden');
+    if (xd) xd.setAttribute('visibility', 'hidden');
+    if (chartState) chartState.cur = null;
+  }
+
+  // ---------- update loop ----------
+  var lastResult = null;
+  function update() {
+    markPreset();
+    renderDerived();
+    var r = M.evaluate(scenario);
+    lastResult = r;
+    renderErrors(r);
+    var ok = r.ok;
+    ['output', 'units-section'].forEach(function (id) { $(id).style.opacity = ok ? '' : '0.35'; });
+    if (ok) {
+      renderHeadline(r);
+      renderFlags(r);
+      renderUnits(r);
+      renderYear(r);
+      renderChart(r);
+    } else {
+      $('flags').hidden = true;
+    }
+    save();
+    if (!$('io').hidden) $('io-text').value = JSON.stringify(scenario, null, 2);
+  }
+
+  function toast(id, text) {
+    var t = $(id);
+    t.textContent = text;
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.textContent = ''; }, 2600);
+  }
+  function copy(text, okMsg, failEl, id) {
+    var fallback = function () {
+      if (failEl) { failEl.focus(); failEl.select(); }
+      toast(id, 'Copy was blocked. The text is selected; press Ctrl+C or ⌘C.');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast(id, okMsg); }, fallback);
+    } else fallback();
+  }
+
+  // ---------- boot ----------
+  function boot() {
+    buildPresets();
+    var fromLink = fromHash();
+    var saved = loadSaved();
+    if (fromLink) { scenario = fitOverhead(fromLink); activePreset = null; }
+    else if (saved) { scenario = fitOverhead(saved); activePreset = null; }
+    else { scenario = fitOverhead(clone(PRESETS['mixed-practice'])); activePreset = 'mixed-practice'; }
+    fillForm();
+
+    inputs.forEach(function (el) {
+      el.addEventListener('input', function () {
+        readInput(el);
+        activePreset = null;
+        update();
+      });
+    });
+    $('form').addEventListener('submit', function (e) { e.preventDefault(); });
+
+    // A share link only works where the page owns its address bar.
+    var framed = false;
+    try { framed = window.self !== window.top; } catch (e) { framed = true; }
+    if (!framed && /^https?:$/.test(location.protocol)) {
+      var sb = $('btn-share');
+      sb.hidden = false;
+      sb.addEventListener('click', function () {
+        var url = location.href.split('#')[0] + '#s=' + toB64(JSON.stringify(scenario));
+        try { history.replaceState(null, '', url); } catch (e) { /* ignore */ }
+        copy(url, 'Link copied. Anyone who opens it sees this scenario.', null, 'toast');
+      });
+    }
+
+    $('btn-io').addEventListener('click', function () {
+      var io = $('io');
+      io.hidden = !io.hidden;
+      this.setAttribute('aria-expanded', String(!io.hidden));
+      if (!io.hidden) $('io-text').value = JSON.stringify(scenario, null, 2);
+    });
+    $('btn-copy').addEventListener('click', function () {
+      copy($('io-text').value, 'Scenario JSON copied.', $('io-text'), 'io-msg');
+    });
+    $('btn-load').addEventListener('click', function () {
+      try {
+        var s = JSON.parse($('io-text').value);
+        if (!s || typeof s !== 'object') throw new Error('not an object');
+        scenario = fitOverhead(s);
+        activePreset = null;
+        fillForm();
+        update();
+        toast('io-msg', 'Scenario loaded.');
+      } catch (e) {
+        toast('io-msg', 'That text is not valid scenario JSON. Check for a missing comma or brace.');
+      }
+    });
+
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () { if (lastResult && lastResult.ok) renderChart(lastResult); }, 120);
+    });
+    update();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
