@@ -86,3 +86,7 @@ This is an educational model for thinking through practice economics. It is not 
 ## License
 
 [MIT](LICENSE)
+
+## Discussion
+
+Questions, ideas, and discussion about this tool live in the repo's [GitHub Discussions](https://github.com/StevenFoxAO/advice-only-practice-modeling/discussions).
