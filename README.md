@@ -8,7 +8,7 @@ A worksheet for evaluating an advice-only financial planning practice. You enter
 
 It also breaks out revenue and contribution per hour for each pricing model, gives a planned-year P&L and time budget, and plots net hourly rate against client count.
 
-There are no dependencies, no build step, and no data collection. Everything runs in your browser or in Node.
+There are no dependencies and no build step. Everything runs in your browser or in Node, and your inputs are never sent anywhere. The one outside request is the web page loading its typefaces from Google Fonts. If you'd rather avoid that, delete the three font `<link>` tags in `index.html`; the page falls back to system fonts.
 
 ## Use it
 
